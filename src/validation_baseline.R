@@ -4,10 +4,10 @@
 
 # If this relative path fails, use:
 # development_data <- readRDS(file.choose())
-# Select development_data.rds, NOT the holdout file.
+# Select asthma_development.rds, NOT the holdout file.
 
 development_data <- readRDS(
-  "development/development_data.rds"
+  "../data/split_data/asthma_development.rds"
 )
 
 stopifnot(
@@ -161,18 +161,17 @@ cat(
 # 6. Save development data and results
 # ============================================================
 
-dir.create("development", showWarnings = FALSE)
-dir.create("outputs", showWarnings = FALSE)
+dir.create("../data/split_data", showWarnings = FALSE, recursive = TRUE)
 
 # Save separately; preserve the original development file.
 saveRDS(
   asthma_development,
-  "development/asthma_development_data.rds"
+  "../data/split_data/asthma_development_data.rds"
 )
 
 write.csv(
   fold_results_asthma,
-  "outputs/asthma_baseline_by_fold.csv",
+  "../data/split_data/asthma_baseline_by_fold.csv",
   row.names = FALSE
 )
 
@@ -182,7 +181,7 @@ write.csv(
     cv_rmse = baseline_cv_rmse,
     development_n = length(y_asthma)
   ),
-  "outputs/asthma_baseline_summary.csv",
+  "../data/split_data/asthma_baseline_summary.csv",
   row.names = FALSE
 )
 
@@ -190,7 +189,9 @@ cat(
   "\nSummary saved to:\n",
   file.path(
     getwd(),
-    "outputs",
+    "..",
+    "data",
+    "split_data",
     "asthma_baseline_summary.csv"
   ),
   "\n"
