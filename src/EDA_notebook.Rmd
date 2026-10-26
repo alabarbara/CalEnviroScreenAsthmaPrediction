@@ -1,0 +1,327 @@
+---
+title: "Exploratory Data Analysis"
+output: html_document
+---
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+theme_set(theme_minimal())
+```
+
+## Load data
+
+Fill in the file name, the outcome, and which columns to look at.
+
+```{r}
+dat <- readRDS("/Users/nomi/Downloads/asthma_development.rds")
+```
+
+```{r}
+outcome   <- "asthma"              # outcome variable (numeric)
+num_vars  <- c("ozone", "pm2_5", "diesel_pm", "drinking_water", "pesticides",
+              "tox_release", "traffic", "cleanup_sites", "groundwater_threats",
+              "imp_water_bodies", "education", "haz_waste", "solid_waste",
+              "linguistic_isolation", "poverty", "unemployment", "housing_burden")      # numeric covariates
+
+
+# create categorical covariates
+dat <- dat %>%
+  mutate(
+    haz_waste_any    = factor(ifelse(haz_waste > 0, "yes", "no")),
+    solid_waste_any  = factor(ifelse(solid_waste > 0, "yes", "no"))
+  )
+
+# group counties into regions (fill in the rest)
+dat <- dat %>%
+  mutate(region = case_when(
+    california_county %in% c("Alameda", "Contra Costa", "Marin", "Napa", "San Francisco",
+                             "San Mateo", "Santa Clara", "Solano", "Sonoma") ~ "Bay Area",
+    california_county %in% c("San Joaquin", "Stanislaus", "Merced", "Madera",
+                             "Fresno", "Kings", "Tulare", "Kern") ~ "San Joaquin Valley",
+    california_county %in% c("Imperial", "Los Angeles", "Orange", "Riverside", "San Bernardino",
+                             "San Diego", "San Luis Obispo", "Santa Barbara", "Ventura") ~ "SoCal",
+    TRUE ~ "Other"
+  ),
+  region = factor(region))
+
+table(dat$region)
+# check spelling matches your data - any county listed here is going into "Other"
+dat %>% filter(region == "Other") %>% count(california_county, sort = TRUE)
+
+cat_vars  <- c("region", "haz_waste_any", "solid_waste_any")      # categorical covariates
+
+group_var <- "region" # grouping variable for part (d)
+
+dat <- dat %>% mutate(across(all_of(cat_vars), as.factor))
+
+dim(dat)
+glimpse(dat)
+summary(dat)
+length(unique(dat$california_county))
+unique(dat$california_county)
+
+```
+
+## (a) Data collection and data quality
+
+Some quick checks to back up the write-up:
+
+```{r}
+# duplicate rows
+sum(duplicated(dat))
+
+# distribution of the outcome
+ggplot(dat, aes(.data[[outcome]])) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = paste("Distribution of", outcome))
+```
+
+```{r}
+# distributions of numeric covariates - look for skew, odd spikes, impossible values
+dat %>%
+  select(all_of(num_vars)) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(value)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  facet_wrap(~ name, scales = "free")
+
+# outliers (more than 1.5 IQR beyond the quartiles)
+sapply(dat[num_vars], function(x) {
+  q <- quantile(x, c(0.25, 0.75), na.rm = TRUE)
+  sum(x < q[1] - 1.5 * IQR(x, na.rm = TRUE) | x > q[2] + 1.5 * IQR(x, na.rm = TRUE), na.rm = TRUE)
+})
+```
+
+```{r}
+# how balanced are the categories? very small groups may be under-sampled
+for (v in cat_vars) {
+  print(dat %>% count(.data[[v]]) %>% mutate(pct = round(100 * n / sum(n), 1)))
+}
+```
+
+## (b) Correlation with the outcome
+
+Numeric covariates:
+
+```{r}
+cor_outcome <- sapply(num_vars, function(v) cor(dat[[v]], dat[[outcome]], use = "complete.obs"))
+cor_outcome <- sort(cor_outcome, decreasing = TRUE)
+round(cor_outcome, 3)
+
+tibble(variable = names(cor_outcome), r = cor_outcome) %>%
+  ggplot(aes(r, reorder(variable, abs(r)))) +
+  geom_col(fill = "steelblue") +
+  geom_vline(xintercept = 0) +
+  labs(x = paste("Correlation with", outcome), y = NULL)
+```
+
+```{r, fig.height=6}
+dat %>%
+  select(all_of(c(outcome, num_vars))) %>%
+  pivot_longer(-all_of(outcome)) %>%
+  ggplot(aes(value, .data[[outcome]])) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", color = "red") +
+  facet_wrap(~ name, scales = "free_x")
+```
+
+Categorical covariates — compare the outcome across categories:
+
+```{r}
+for (v in cat_vars) {
+  print(
+    ggplot(dat, aes(.data[[v]], .data[[outcome]])) +
+      geom_boxplot(fill = "lightblue") +
+      labs(title = paste(outcome, "by", v), x = v)
+  )
+  print(dat %>% group_by(.data[[v]]) %>%
+          summarise(n = n(), mean = mean(.data[[outcome]], na.rm = TRUE),
+                    median = median(.data[[outcome]], na.rm = TRUE)))
+
+  if (nlevels(droplevels(dat[[v]])) == 2) {
+    print(t.test(reformulate(v, response = outcome), data = dat))
+  } else {
+    print(pairwise.t.test(dat[[outcome]], dat[[v]], p.adjust.method = "bonferroni"))
+  }
+}
+```
+
+*Write-up: strongest / weakest covariates, and anything surprising.*
+
+## (c) Correlations among covariates
+
+```{r}
+cor_mat <- cor(dat[num_vars], use = "pairwise.complete.obs")
+round(cor_mat, 2)
+
+as.data.frame(as.table(cor_mat)) %>%
+  ggplot(aes(Var1, Var2, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = round(Freq, 2)), size = 3) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits = c(-1, 1)) +
+  labs(x = NULL, y = NULL, fill = "r") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+#drop housing burden and education
+```
+
+```{r}
+# strongest pairs
+as.data.frame(as.table(cor_mat)) %>%
+  filter(as.character(Var1) < as.character(Var2)) %>%
+  arrange(desc(abs(Freq))) %>%
+  head(10)
+```
+
+Relationships between categorical covariates (contingency tables + chi-square test):
+
+```{r}
+if (length(cat_vars) > 1) {
+  for (pair in combn(cat_vars, 2, simplify = FALSE)) {
+    tab <- table(dat[[pair[1]]], dat[[pair[2]]], dnn = pair)
+    print(tab)
+    print(round(prop.table(tab, 1), 2))
+    print(chisq.test(tab))
+  }
+}
+```
+
+Categorical vs numeric covariates (group means):
+
+```{r}
+for (v in cat_vars) {
+  print(dat %>% group_by(.data[[v]]) %>%
+          summarise(across(all_of(num_vars), ~ mean(.x, na.rm = TRUE))))
+}
+```
+
+```{r}
+test_by_group <- function(grp) {
+  map_dfr(num_vars, function(v) {
+    fit <- aov(reformulate(grp, response = v), data = dat)
+    tab <- summary(fit)[[1]]
+    tibble(variable = v,
+           F        = tab$`F value`[1],
+           p_value  = tab$`Pr(>F)`[1],
+           eta_sq   = tab$`Sum Sq`[1] / sum(tab$`Sum Sq`))
+  }) %>%
+    mutate(p_adj = p.adjust(p_value, method = "bonferroni")) %>%
+    arrange(desc(eta_sq))
+}
+
+test_by_group("region")
+test_by_group("haz_waste_any")
+test_by_group("solid_waste_any")
+```
+
+*Write-up: which covariates are strongly related to each other? Anything unexpected?*
+
+## (d) Subgroups
+
+```{r}
+dat %>% count(.data[[group_var]])
+
+# means of the outcome and covariates in each group
+dat %>%
+  group_by(.data[[group_var]]) %>%
+  summarise(across(all_of(c(outcome, num_vars)), ~ mean(.x, na.rm = TRUE)))
+```
+
+```{r, fig.height=6}
+# compare covariate distributions across groups
+dat %>%
+  select(all_of(c(group_var, num_vars))) %>%
+  pivot_longer(-all_of(group_var)) %>%
+  ggplot(aes(.data[[group_var]], value, fill = .data[[group_var]])) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~ name, scales = "free_y")
+```
+
+```{r}
+# does the relationship with the outcome look different by group?
+dat %>%
+  select(all_of(c(outcome, group_var, num_vars))) %>%
+  pivot_longer(all_of(num_vars)) %>%
+  ggplot(aes(value, .data[[outcome]], color = .data[[group_var]])) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~ name, scales = "free_x")
+```
+
+*Write-up: describe any notable differences between groups.*
+
+## (e) Missing values
+
+```{r}
+vars <- c(outcome, num_vars, cat_vars)
+
+missing <- tibble(
+  variable = vars,
+  n_missing = sapply(dat[vars], function(x) sum(is.na(x))),
+  pct_missing = round(100 * n_missing / nrow(dat), 1)
+) %>% arrange(desc(pct_missing))
+missing
+
+# rows we would keep if we dropped every incomplete row
+sum(complete.cases(dat[vars]))
+```
+
+Also check for placeholder values that really mean "missing" (e.g. -999, "", "?"):
+
+```{r}
+sapply(dat[vars], function(x) sum(x %in% c(-999, -99, "", "?", "NA"), na.rm = TRUE))
+```
+
+Is missingness related to the outcome? If so, dropping those rows could bias the analysis.
+
+```{r}
+for (v in missing$variable[missing$n_missing > 0 & missing$variable != outcome]) {
+  cat("\n", v, "\n")
+  print(t.test(dat[[outcome]] ~ is.na(dat[[v]])))
+}
+```
+
+```{r}
+vars <- c(outcome, num_vars)
+complete <- complete.cases(dat[vars])
+
+sum(!complete)                       # how many tracts you're dropping
+(sum(!complete)/nrow(dat))*100            # percent dropped
+
+mean(dat$asthma)                     # asthma mean, all tracts
+mean(dat$asthma[complete])           # asthma mean, complete tracts only
+table(dat$region, complete)          # are dropped tracts concentrated in one region?
+```
+
+Impute the Median
+
+```{r}
+# variables with missing values
+impute_vars <- c("pm2_5", "drinking_water", "traffic", "education",
+                 "linguistic_isolation", "poverty", "unemployment", "housing_burden")
+
+# medians used for imputation (worth reporting)
+medians <- sapply(dat[impute_vars], median, na.rm = TRUE)
+round(medians, 2)
+
+# fill in missing values with the median
+dat_imp <- dat %>%
+  mutate(across(all_of(impute_vars), ~ replace_na(.x, median(.x, na.rm = TRUE))))
+
+# check: should all be 0
+colSums(is.na(dat_imp[impute_vars]))
+
+# compare before vs. after (the means should barely change, the SDs shrink a little)
+tibble(
+  variable    = impute_vars,
+  n_imputed   = sapply(dat[impute_vars], function(x) sum(is.na(x))),
+  mean_before = sapply(dat[impute_vars], mean, na.rm = TRUE),
+  mean_after  = sapply(dat_imp[impute_vars], mean),
+  sd_before   = sapply(dat[impute_vars], sd, na.rm = TRUE),
+  sd_after    = sapply(dat_imp[impute_vars], sd)
+) %>%
+  mutate(across(where(is.double), ~ round(.x, 2)))
+```
+
