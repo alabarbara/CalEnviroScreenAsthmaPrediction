@@ -335,7 +335,15 @@ tibble(
 ```
 
 ```{r}
+# remove unnecessary variables
+dat_imp_cut <- dat_imp %>%
+  select(-c(haz_waste, solid_waste, education, housing_burden))
+
+names(dat_imp_cut)   # check they're gone
+ 
 # Export
 write_csv(dat_imp, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final.csv")
+
+write_csv(dat_imp_cut, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final_vars_dropped.csv")
 
 ```
