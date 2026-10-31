@@ -4,6 +4,7 @@ output: html_document
 ---
 
 ```{r setup, message=FALSE, warning=FALSE}
+# load in required packages and set up rmd 
 library(tidyverse)
 knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 theme_set(theme_minimal())
@@ -11,13 +12,13 @@ theme_set(theme_minimal())
 
 ## Load data
 
-Fill in the file name, the outcome, and which columns to look at.
-
 ```{r}
+# Load R Dataset (Created in another code file)
 dat <- readRDS("/Users/nomi/Downloads/asthma_development.rds")
 ```
 
 ```{r}
+# Set which columns are which
 outcome   <- "asthma"              # outcome variable (numeric)
 num_vars  <- c("ozone", "pm2_5", "diesel_pm", "drinking_water", "pesticides",
               "tox_release", "traffic", "cleanup_sites", "groundwater_threats",
@@ -25,14 +26,14 @@ num_vars  <- c("ozone", "pm2_5", "diesel_pm", "drinking_water", "pesticides",
               "linguistic_isolation", "poverty", "unemployment", "housing_burden")      # numeric covariates
 
 
-# create categorical covariates
+# create two categorical covariates - see report for reasoning behind choices
 dat <- dat %>%
   mutate(
     haz_waste_any    = factor(ifelse(haz_waste > 0, "yes", "no")),
     solid_waste_any  = factor(ifelse(solid_waste > 0, "yes", "no"))
   )
 
-# group counties into regions (fill in the rest)
+# group counties into regions (based largely off of air committees)
 dat <- dat %>%
   mutate(region = case_when(
     california_county %in% c("Alameda", "Contra Costa", "Marin", "Napa", "San Francisco",
@@ -45,16 +46,22 @@ dat <- dat %>%
   ),
   region = factor(region))
 
+# Check regions
 table(dat$region)
-# check spelling matches your data - any county listed here is going into "Other"
+
+# Check spelling matches your data 
 dat %>% filter(region == "Other") %>% count(california_county, sort = TRUE)
 
+# Set categorical columns
 cat_vars  <- c("region", "haz_waste_any", "solid_waste_any")      # categorical covariates
 
+# Set group column to explore
 group_var <- "region" # grouping variable for part (d)
 
+# convert categorical variables to factors
 dat <- dat %>% mutate(across(all_of(cat_vars), as.factor))
 
+# Check out the data
 dim(dat)
 glimpse(dat)
 summary(dat)
@@ -65,10 +72,8 @@ unique(dat$california_county)
 
 ## (a) Data collection and data quality
 
-Some quick checks to back up the write-up:
-
 ```{r}
-# duplicate rows
+# check for duplicate rows
 sum(duplicated(dat))
 
 # distribution of the outcome
@@ -78,7 +83,7 @@ ggplot(dat, aes(.data[[outcome]])) +
 ```
 
 ```{r}
-# distributions of numeric covariates - look for skew, odd spikes, impossible values
+# distributions of numeric covariates
 dat %>%
   select(all_of(num_vars)) %>%
   pivot_longer(everything()) %>%
@@ -86,7 +91,12 @@ dat %>%
   geom_histogram(bins = 30, fill = "steelblue", color = "white") +
   facet_wrap(~ name, scales = "free")
 
-# outliers (more than 1.5 IQR beyond the quartiles)
+
+ggplot(dat, aes(pesticides)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  labs(title = paste("Distribution of pesticides"))
+
+# outliers
 sapply(dat[num_vars], function(x) {
   q <- quantile(x, c(0.25, 0.75), na.rm = TRUE)
   sum(x < q[1] - 1.5 * IQR(x, na.rm = TRUE) | x > q[2] + 1.5 * IQR(x, na.rm = TRUE), na.rm = TRUE)
@@ -94,7 +104,7 @@ sapply(dat[num_vars], function(x) {
 ```
 
 ```{r}
-# how balanced are the categories? very small groups may be under-sampled
+# how balanced are the categories?
 for (v in cat_vars) {
   print(dat %>% count(.data[[v]]) %>% mutate(pct = round(100 * n / sum(n), 1)))
 }
@@ -105,6 +115,7 @@ for (v in cat_vars) {
 Numeric covariates:
 
 ```{r}
+# calculate pearson's correlations
 cor_outcome <- sapply(num_vars, function(v) cor(dat[[v]], dat[[outcome]], use = "complete.obs"))
 cor_outcome <- sort(cor_outcome, decreasing = TRUE)
 round(cor_outcome, 3)
@@ -126,7 +137,7 @@ dat %>%
   facet_wrap(~ name, scales = "free_x")
 ```
 
-Categorical covariates — compare the outcome across categories:
+Categorical covariates:
 
 ```{r}
 for (v in cat_vars) {
@@ -147,7 +158,6 @@ for (v in cat_vars) {
 }
 ```
 
-*Write-up: strongest / weakest covariates, and anything surprising.*
 
 ## (c) Correlations among covariates
 
@@ -164,7 +174,7 @@ as.data.frame(as.table(cor_mat)) %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
-#drop housing burden and education
+# drop housing burden and education
 ```
 
 ```{r}
@@ -216,7 +226,6 @@ test_by_group("haz_waste_any")
 test_by_group("solid_waste_any")
 ```
 
-*Write-up: which covariates are strongly related to each other? Anything unexpected?*
 
 ## (d) Subgroups
 
@@ -250,7 +259,7 @@ dat %>%
   facet_wrap(~ name, scales = "free_x")
 ```
 
-*Write-up: describe any notable differences between groups.*
+
 
 ## (e) Missing values
 
@@ -302,7 +311,7 @@ Impute the Median
 impute_vars <- c("pm2_5", "drinking_water", "traffic", "education",
                  "linguistic_isolation", "poverty", "unemployment", "housing_burden")
 
-# medians used for imputation (worth reporting)
+# medians used for imputation
 medians <- sapply(dat[impute_vars], median, na.rm = TRUE)
 round(medians, 2)
 
@@ -325,3 +334,8 @@ tibble(
   mutate(across(where(is.double), ~ round(.x, 2)))
 ```
 
+```{r}
+# Export
+write_csv(dat_imp, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final.csv")
+
+```
