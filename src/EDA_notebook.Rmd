@@ -304,46 +304,19 @@ mean(dat$asthma[complete])           # asthma mean, complete tracts only
 table(dat$region, complete)          # are dropped tracts concentrated in one region?
 ```
 
-Impute the Median
+We will impute the Median for each fold in the next section
 
-```{r}
-# variables with missing values
-impute_vars <- c("pm2_5", "drinking_water", "traffic", "education",
-                 "linguistic_isolation", "poverty", "unemployment", "housing_burden")
-
-# medians used for imputation
-medians <- sapply(dat[impute_vars], median, na.rm = TRUE)
-round(medians, 2)
-
-# fill in missing values with the median
-dat_imp <- dat %>%
-  mutate(across(all_of(impute_vars), ~ replace_na(.x, median(.x, na.rm = TRUE))))
-
-# check: should all be 0
-colSums(is.na(dat_imp[impute_vars]))
-
-# compare before vs. after (the means should barely change, the SDs shrink a little)
-tibble(
-  variable    = impute_vars,
-  n_imputed   = sapply(dat[impute_vars], function(x) sum(is.na(x))),
-  mean_before = sapply(dat[impute_vars], mean, na.rm = TRUE),
-  mean_after  = sapply(dat_imp[impute_vars], mean),
-  sd_before   = sapply(dat[impute_vars], sd, na.rm = TRUE),
-  sd_after    = sapply(dat_imp[impute_vars], sd)
-) %>%
-  mutate(across(where(is.double), ~ round(.x, 2)))
-```
 
 ```{r}
 # remove unnecessary variables
-dat_imp_cut <- dat_imp %>%
+dat_cut <- dat %>%
   select(-c(haz_waste, solid_waste, education, housing_burden))
 
-names(dat_imp_cut)   # check they're gone
+names(dat_cut)   # check they're gone
  
 # Export
-write_csv(dat_imp, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final.csv")
+write_csv(dat, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final.csv")
 
-write_csv(dat_imp_cut, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final_vars_dropped.csv")
+write_csv(dat_cut, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final_vars_dropped.csv")
 
 ```
