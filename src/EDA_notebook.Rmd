@@ -13,8 +13,20 @@ theme_set(theme_minimal())
 ## Load data
 
 ```{r}
-# Load R Dataset (Created in another code file)
-dat <- readRDS("/Users/nomi/Downloads/asthma_development.rds")
+# Load development RDS (prefer repo path; keep existing fold_id)
+dev_candidates <- c(
+  "../data/split_data/asthma_development_unimputed.rds",
+  "data/split_data/asthma_development_unimputed.rds",
+  "../data/split_data/asthma_development.rds",
+  "data/split_data/asthma_development.rds"
+)
+dev_path <- dev_candidates[file.exists(dev_candidates)][1]
+if (is.na(dev_path)) {
+  stop("Could not find asthma development RDS under data/split_data/.")
+}
+dat <- readRDS(dev_path)
+stopifnot("fold_id" %in% names(dat), "asthma" %in% names(dat))
+message("Loaded: ", normalizePath(dev_path))
 ```
 
 ```{r}
@@ -304,46 +316,55 @@ mean(dat$asthma[complete])           # asthma mean, complete tracts only
 table(dat$region, complete)          # are dropped tracts concentrated in one region?
 ```
 
-Impute the Median
+## Modeling dataset export
+
+One training CSV: engineered categoricals, correlated/redundant columns dropped,
+covariate median imputation, existing `fold_id` kept. `asthma` is **not**
+imputed here — `validation_baseline.R` drops NA-outcome rows before CV.
 
 ```{r}
-# variables with missing values
-impute_vars <- c("pm2_5", "drinking_water", "traffic", "education",
-                 "linguistic_isolation", "poverty", "unemployment", "housing_burden")
+# Drop continuous waste (replaced by *_any) and highly correlated SES vars
+drop_vars <- c("haz_waste", "solid_waste", "education", "housing_burden")
 
-# medians used for imputation
-medians <- sapply(dat[impute_vars], median, na.rm = TRUE)
+dat_model <- dat %>%
+  select(-any_of(drop_vars))
+
+# Median-impute remaining numeric covariates only (not asthma)
+impute_vars <- c(
+  "pm2_5", "drinking_water", "traffic",
+  "linguistic_isolation", "poverty", "unemployment"
+)
+impute_vars <- intersect(impute_vars, names(dat_model))
+
+medians <- sapply(dat_model[impute_vars], median, na.rm = TRUE)
 round(medians, 2)
 
-# fill in missing values with the median
-dat_imp <- dat %>%
+dat_model <- dat_model %>%
   mutate(across(all_of(impute_vars), ~ replace_na(.x, median(.x, na.rm = TRUE))))
 
-# check: should all be 0
-colSums(is.na(dat_imp[impute_vars]))
+stopifnot(all(colSums(is.na(dat_model[impute_vars])) == 0))
+stopifnot("fold_id" %in% names(dat_model))
 
-# compare before vs. after (the means should barely change, the SDs shrink a little)
 tibble(
   variable    = impute_vars,
-  n_imputed   = sapply(dat[impute_vars], function(x) sum(is.na(x))),
-  mean_before = sapply(dat[impute_vars], mean, na.rm = TRUE),
-  mean_after  = sapply(dat_imp[impute_vars], mean),
-  sd_before   = sapply(dat[impute_vars], sd, na.rm = TRUE),
-  sd_after    = sapply(dat_imp[impute_vars], sd)
+  median_used = as.numeric(medians[impute_vars]),
+  n_imputed   = sapply(dat[impute_vars], function(x) sum(is.na(x)))
 ) %>%
   mutate(across(where(is.double), ~ round(.x, 2)))
+
+cat("NA asthma rows left for validation to drop:", sum(is.na(dat_model$asthma)), "\n")
+names(dat_model)
 ```
 
 ```{r}
-# remove unnecessary variables
-dat_imp_cut <- dat_imp %>%
-  select(-c(haz_waste, solid_waste, education, housing_burden))
+out_dir <- if (dir.exists("../data/clean_data") || dir.exists("../data")) {
+  "../data/clean_data"
+} else {
+  "data/clean_data"
+}
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
-names(dat_imp_cut)   # check they're gone
- 
-# Export
-write_csv(dat_imp, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final.csv")
-
-write_csv(dat_imp_cut, "/Users/nomi/Documents/GitHub/CalEnviroScreenAsthmaPrediction/data/clean_data/eda_data_final_vars_dropped.csv")
-
+out_path <- file.path(out_dir, "eda_training.csv")
+write_csv(dat_model, out_path)
+message("Wrote single training CSV: ", normalizePath(out_path))
 ```

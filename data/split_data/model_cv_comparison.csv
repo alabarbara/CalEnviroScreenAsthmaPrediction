@@ -1,0 +1,5 @@
+model,mean_fold_rmse,pooled_oof_rmse,beats_baseline,notes,delta_vs_baseline
+random_forest,21.191195161319484,21.20083790177703,True,"RandomForestRegressor{'n_estimators': 300, 'max_depth': None, 'min_samples_leaf': 5, 'random_state': 42, 'n_jobs': -1}",-9.21744192167193
+linear,24.58625426590502,24.587677579837965,True,OLS + StandardScaler fit on each training fold,-5.830602243610997
+lasso,24.599472905806657,24.601222761379816,True,LassoCV(cv=5) + StandardScaler fit on each training fold,-5.817057062069146
+training_mean_baseline,30.409574899813975,30.418279823448962,False,predict train-fold mean of asthma,0.0
