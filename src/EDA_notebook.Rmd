@@ -15,8 +15,6 @@ theme_set(theme_minimal())
 ```{r}
 # Load development RDS (prefer repo path; keep existing fold_id)
 dev_candidates <- c(
-  "../data/split_data/asthma_development_unimputed.rds",
-  "data/split_data/asthma_development_unimputed.rds",
   "../data/split_data/asthma_development.rds",
   "data/split_data/asthma_development.rds"
 )
@@ -34,7 +32,7 @@ message("Loaded: ", normalizePath(dev_path))
 outcome   <- "asthma"              # outcome variable (numeric)
 num_vars  <- c("ozone", "pm2_5", "diesel_pm", "drinking_water", "pesticides",
               "tox_release", "traffic", "cleanup_sites", "groundwater_threats",
-              "imp_water_bodies", "education", "haz_waste", "solid_waste",
+              "imp_water_bodies", "education",
               "linguistic_isolation", "poverty", "unemployment", "housing_burden")      # numeric covariates
 
 
@@ -100,7 +98,7 @@ dat %>%
   select(all_of(num_vars)) %>%
   pivot_longer(everything()) %>%
   ggplot(aes(value)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+  geom_histogram(bins = 30, fill = "steelblue", color = "white", na.rm = TRUE) +
   facet_wrap(~ name, scales = "free")
 
 
@@ -144,8 +142,8 @@ dat %>%
   select(all_of(c(outcome, num_vars))) %>%
   pivot_longer(-all_of(outcome)) %>%
   ggplot(aes(value, .data[[outcome]])) +
-  geom_point(alpha = 0.3) +
-  geom_smooth(method = "lm", color = "red") +
+  geom_point(alpha = 0.3, , na.rm = TRUE) +
+  geom_smooth(method = "lm", color = "red", na.rm = TRUE) +
   facet_wrap(~ name, scales = "free_x")
 ```
 
@@ -256,7 +254,7 @@ dat %>%
   select(all_of(c(group_var, num_vars))) %>%
   pivot_longer(-all_of(group_var)) %>%
   ggplot(aes(.data[[group_var]], value, fill = .data[[group_var]])) +
-  geom_boxplot(show.legend = FALSE) +
+  geom_boxplot(show.legend = FALSE, na.rm = TRUE) +
   facet_wrap(~ name, scales = "free_y")
 ```
 
@@ -266,8 +264,8 @@ dat %>%
   select(all_of(c(outcome, group_var, num_vars))) %>%
   pivot_longer(all_of(num_vars)) %>%
   ggplot(aes(value, .data[[outcome]], color = .data[[group_var]])) +
-  geom_point(alpha = 0.3) +
-  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(alpha = 0.3, na.rm = TRUE) +
+  geom_smooth(method = "lm", se = FALSE, na.rm = TRUE) +
   facet_wrap(~ name, scales = "free_x")
 ```
 
@@ -357,14 +355,16 @@ names(dat_model)
 ```
 
 ```{r}
-out_dir <- if (dir.exists("../data/clean_data") || dir.exists("../data")) {
-  "../data/clean_data"
-} else {
-  "data/clean_data"
-}
-dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+# Commented out so we don't overwrite any files. It should be fine (since none of the above code changed), but just in case!
 
-out_path <- file.path(out_dir, "eda_training.csv")
-write_csv(dat_model, out_path)
-message("Wrote single training CSV: ", normalizePath(out_path))
+#out_dir <- if (dir.exists("../data/clean_data") || dir.exists("../data")) {
+#  "../data/clean_data"
+#} else {
+#  "data/clean_data"
+#}
+#dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+#out_path <- file.path(out_dir, "eda_training.csv")
+#write_csv(dat_model, out_path)
+#message("Wrote single training CSV: ", normalizePath(out_path))
 ```
