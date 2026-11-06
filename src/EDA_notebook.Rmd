@@ -322,7 +322,7 @@ imputed here — `validation_baseline.R` drops NA-outcome rows before CV.
 
 ```{r}
 # Drop continuous waste (replaced by *_any) and highly correlated SES vars
-drop_vars <- c("haz_waste", "solid_waste", "education", "housing_burden")
+drop_vars <- c("haz_waste", "solid_waste", "education", "housing_burden", "california_county")
 
 dat_model <- dat %>%
   select(-any_of(drop_vars))
