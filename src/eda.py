@@ -516,43 +516,35 @@ print(pd.crosstab(dat["region"], complete))  # are dropped tracts concentrated i
 # Modeling dataset export
 # ===========================================================================
 # One training CSV: engineered categoricals, correlated/redundant columns dropped,
-# covariate median imputation, existing fold_id kept. asthma is NOT imputed —
-# validation_baseline drops NA-outcome rows before CV.
+# existing fold_id kept. Covariates are left unimputed — fold-wise median
+# imputation happens in modelfit.py. asthma is NOT imputed; validation_baseline
+# drops NA-outcome rows before CV.
 
 # Drop continuous waste (replaced by *_any) and highly correlated SES vars
 drop_vars = ["haz_waste", "solid_waste", "education", "housing_burden"]
 
 dat_model = dat.drop(columns=[c for c in drop_vars if c in dat.columns])
 
-# Median-impute remaining numeric covariates only (not asthma)
-impute_vars = [
-    "pm2_5",
-    "drinking_water",
-    "traffic",
-    "linguistic_isolation",
-    "poverty",
-    "unemployment",
-]
-impute_vars = [c for c in impute_vars if c in dat_model.columns]
-
-medians = dat_model[impute_vars].median(numeric_only=True)
-print(medians.round(2))
-
-n_imputed = {c: int(dat[c].isna().sum()) for c in impute_vars}
-for c in impute_vars:
-    dat_model[c] = dat_model[c].fillna(medians[c])
-
-assert dat_model[impute_vars].isna().sum().sum() == 0
 assert "fold_id" in dat_model.columns
 
-impute_summary = pd.DataFrame(
+# Report covariate missingness left for fold-wise imputation in modeling
+num_export = [
+    c
+    for c in dat_model.columns
+    if c not in ("asthma", "fold_id", "census_tract", "california_county")
+    and c not in cat_vars
+    and pd.api.types.is_numeric_dtype(dat_model[c])
+]
+missing_export = pd.DataFrame(
     {
-        "variable": impute_vars,
-        "median_used": [float(medians[c]) for c in impute_vars],
-        "n_imputed": [n_imputed[c] for c in impute_vars],
+        "variable": num_export,
+        "n_missing": [int(dat_model[c].isna().sum()) for c in num_export],
     }
 )
-print(impute_summary.round(2))
+missing_export["pct_missing"] = (
+    100 * missing_export["n_missing"] / len(dat_model)
+).round(1)
+print(missing_export.loc[missing_export["n_missing"] > 0].reset_index(drop=True))
 
 print(
     "NA asthma rows left for validation to drop:",

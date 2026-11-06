@@ -15,19 +15,19 @@ asthma_development_unimputed.rds  (development set + fold_id)
 src/eda.py
   FE (region, haz_waste_any, solid_waste_any)
   → drop haz_waste, solid_waste, education, housing_burden
-  → global median impute covariates (NOT asthma)
+  → keep covariates unimputed (NOT asthma)
   → keep existing fold_id
         │
         ▼
-data/clean_data/eda_training.csv   ← single training CSV
+data/clean_data/eda_training.csv   ← single training CSV (unimputed covariates)
         │
         ├──────────────────────────────┐
         ▼                              ▼
 src/validation_baseline.py      src/modelfit.py
   drop NA-asthma rows             drop NA-asthma rows
   → reuse fold_id                 → one-hot categoricals
-  → training-mean 5-fold          → 5-fold CV: linear, lasso, RF
-  → pooled CV RMSE                → feature sets A_base / B_poly
+  → training-mean 5-fold          → per outer fold: train-only median impute
+  → pooled CV RMSE                  → A_base / B_poly; linear, lasso, RF
         │
         ├─► asthma_development_data.rds
         ├─► asthma_baseline_by_fold.csv
@@ -60,8 +60,7 @@ python src/modelfit.py
 
 1. Engineered categoricals: `haz_waste_any`, `solid_waste_any`, `region` (Bay Area / San Joaquin Valley / SoCal / Other)
 2. Drop: `haz_waste`, `solid_waste`, `education`, `housing_burden`
-3. Median-impute covariates on the full development set: `pm2_5`, `drinking_water`, `traffic`, `linguistic_isolation`, `poverty`, `unemployment`
-4. **Do not** impute `asthma`; keep existing `fold_id`
+3. **Do not** impute covariates or `asthma`; keep existing `fold_id` (fold-wise median imputation happens in `modelfit.py`)
 
 **Output:** `data/clean_data/eda_training.csv` only.
 
@@ -95,18 +94,20 @@ python src/modelfit.py
 
 **Features:** all non-ID covariates; categoricals (`region`, `haz_waste_any`, `solid_waste_any`) one-hot encoded once.
 
+**Per outer fold (shared by all models):** fit numeric medians on the training fold only → apply to train and validation → then build the feature set.
+
 | Feature set | Description |
 |-------------|-------------|
 | `A_base` | Numeric predictors + one-hot categoricals |
-| `B_poly` | `A_base` plus squared mean-centered terms for `poverty`, `unemployment`, `linguistic_isolation`, `ozone`, `pm2_5` (means from the **training fold only**) |
+| `B_poly` | `A_base` plus squared mean-centered terms for `poverty`, `unemployment`, `linguistic_isolation`, `ozone`, `pm2_5` (means from the **training fold only**, after imputation) |
 
 **Models** (each × both feature sets, same 5-fold CV):
 
 | Model | Notes |
 |-------|--------|
-| Linear (OLS) | `StandardScaler` fit on each training fold |
-| Lasso | `LassoCV(cv=5)` + fold-wise `StandardScaler` |
-| Random forest | 300 trees, `min_samples_leaf=5`, `random_state=42` |
+| Linear (OLS) | `StandardScaler` fit on each outer training fold |
+| Lasso | `Pipeline(StandardScaler, Lasso)` tuned with `GridSearchCV(cv=5)` so scaling is re-fit inside each inner fold |
+| Random forest | 300 trees, `min_samples_leaf=5`, `random_state=42` (unscaled) |
 
 Prints per-fold and pooled OOF RMSE for each model × feature-set combination.
 
@@ -114,6 +115,7 @@ Prints per-fold and pooled OOF RMSE for each model × feature-set combination.
 
 ## Modeling notes
 
-- EDA covariate medians are **global** (fit on all development rows). For stricter no-leakage CV on future models, re-fit medians on each training fold and apply to that fold’s validation covariates; still score only on observed `asthma`.
+- Covariate medians are fit on each **outer training fold** only and applied to that fold’s validation covariates; still score only on observed `asthma`.
+- For Lasso, standardization is nested inside α tuning (not fit once on the full outer training fold before inner splits).
 - Baseline and later models share `eda_training.csv` + the same `fold_id`, after the pre-CV NA-asthma drop.
 - Holdout / evaluation data under `data/split_data/` must remain untouched until Part 2.

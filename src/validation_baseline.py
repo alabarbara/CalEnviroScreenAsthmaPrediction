@@ -3,10 +3,11 @@ Training-mean baseline on EDA modeling CSV
 ============================================================
 Python translation of validation_baseline.R — same logic and paths.
 
-Expects data/clean_data/eda_training.csv from EDA_notebook.Rmd / eda.py:
-  engineered features, correlated cols dropped, covariates median-imputed,
+Expects data/clean_data/eda_training.csv from eda.py:
+  engineered features, correlated cols dropped, covariates left unimputed,
   existing fold_id retained, asthma NOT imputed.
 Drops NA-asthma rows BEFORE CV, then reuses fold_id for 5-fold RMSE.
+(Baseline uses asthma counts only; covariate imputation is irrelevant here.)
 ============================================================
 """
 
@@ -69,7 +70,7 @@ if len(observed) and not bool(np.isfinite(observed.to_numpy(dtype=float)).all())
     raise ValueError("The asthma outcome contains infinite values.")
 
 # Exclude missing outcomes before any fold-based scoring.
-# Do not impute asthma; covariates were already imputed in EDA.
+# Do not impute asthma; baseline ignores covariates.
 eligible = asthma_numeric.notna()
 
 print(

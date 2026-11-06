@@ -1,9 +1,10 @@
 # ============================================================
 # Training-mean baseline on EDA modeling CSV
 # ============================================================
-# Expects data/clean_data/eda_training.csv from EDA_notebook.Rmd:
-#   engineered features, correlated cols dropped, covariates median-imputed,
+# Expects data/clean_data/eda_training.csv from eda.py:
+#   engineered features, correlated cols dropped, covariates left unimputed,
 #   existing fold_id retained, asthma NOT imputed.
+#   Baseline uses asthma only; covariate imputation is irrelevant here.
 # Drops NA-asthma rows BEFORE CV, then reuses fold_id for 5-fold RMSE.
 # ============================================================
 
@@ -56,7 +57,7 @@ if (any(!is.finite(asthma_numeric[!is.na(asthma_numeric)]))) {
 }
 
 # Exclude missing outcomes before any fold-based scoring.
-# Do not impute asthma; covariates were already imputed in EDA.
+# Do not impute asthma; baseline ignores covariates.
 eligible <- !is.na(asthma_numeric)
 
 cat(
