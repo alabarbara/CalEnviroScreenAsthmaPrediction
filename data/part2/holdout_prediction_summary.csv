@@ -1,0 +1,2 @@
+model,development_n,holdout_n_scored,part1_pooled_cv_rmse,holdout_rmse,holdout_minus_cv_rmse
+Random forest (B_poly; reconstructed),6428,1607,21.169666866238725,19.953521753734336,-1.216145112504389
