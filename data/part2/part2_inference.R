@@ -54,3 +54,81 @@ print(results, digits = 4, row.names = FALSE)
 
 dir.create("part2/results", recursive = TRUE, showWarnings = FALSE)
 write.csv(results, "part2/results/inference_development.csv", row.names = FALSE)
+
+# MS&E 226, Part 2 — Question 3b
+# Append after 3a: uses raw, raw_ids, dev_ids, variables, spec,
+# analysis, alpha, and results from the code above.
+
+# Recover the same holdout used in Question 2.
+holdout_idx <- !(raw_ids %in% dev_ids)
+stopifnot(sum(holdout_idx) == 1607L)
+
+# Apply the same county-to-region mapping used in Part 1.
+region_for_county <- function(county) {
+  groups <- list(
+    "Bay Area" = c(
+      "Alameda", "Contra Costa", "Marin", "Napa", "San Francisco",
+      "San Mateo", "Santa Clara", "Solano", "Sonoma"
+    ),
+    "San Joaquin Valley" = c(
+      "San Joaquin", "Stanislaus", "Merced", "Madera",
+      "Fresno", "Kings", "Tulare", "Kern"
+    ),
+    "SoCal" = c(
+      "Imperial", "Los Angeles", "Orange", "Riverside",
+      "San Bernardino", "San Diego", "San Luis Obispo",
+      "Santa Barbara", "Ventura"
+    )
+  )
+  region <- rep("Other", length(county))
+  for (group in names(groups)) {
+    region[county %in% groups[[group]]] <- group
+  }
+  region
+}
+
+# Verify that the mapping reproduces the regions used in 3a.
+stopifnot(all(
+  region_for_county(raw$california_county[idx]) ==
+    as.character(analysis$region)
+))
+
+holdout <- raw[holdout_idx, variables, drop = FALSE]
+holdout$region <- factor(
+  region_for_county(raw$california_county[holdout_idx]),
+  levels = levels(analysis$region)
+)
+
+# Refit the same specification from scratch on complete holdout rows.
+fit_holdout <- lm(spec, data = holdout, na.action = na.omit)
+holdout_coefs <- coef(summary(fit_holdout))
+holdout_ci <- confint(fit_holdout, level = 0.95)
+
+# Align by coefficient name before comparing.
+terms <- results$term
+stopifnot(all(terms %in% rownames(holdout_coefs)))
+holdout_p <- holdout_coefs[terms, "Pr(>|t|)"]
+
+comparison <- data.frame(
+  term = terms,
+  development_estimate = results$estimate,
+  development_ci_lower = results$ci_lower,
+  development_ci_upper = results$ci_upper,
+  development_p_value = results$p_value,
+  development_significant = results$significant_at_5_pct,
+  holdout_estimate = holdout_coefs[terms, "Estimate"],
+  holdout_ci_lower = holdout_ci[terms, 1],
+  holdout_ci_upper = holdout_ci[terms, 2],
+  holdout_p_value = holdout_p,
+  holdout_significant = holdout_p < alpha,
+  row.names = NULL
+)
+
+cat("\nHoldout tracts used:", nobs(fit_holdout), "of", nrow(holdout), "\n")
+print(comparison, digits = 4, row.names = FALSE)
+
+write.csv(
+  comparison,
+  "part2/results/inference_development_vs_holdout.csv",
+  row.names = FALSE
+)
