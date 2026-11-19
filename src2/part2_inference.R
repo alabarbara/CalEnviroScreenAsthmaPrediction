@@ -52,8 +52,8 @@ results <- data.frame(
 cat("Development tracts used:", nobs(fit), "of", nrow(dev), "\n")
 print(results, digits = 4, row.names = FALSE)
 
-dir.create("part2/results", recursive = TRUE, showWarnings = FALSE)
-write.csv(results, "part2/results/inference_development.csv", row.names = FALSE)
+dir.create("data/part2", recursive = TRUE, showWarnings = FALSE)
+write.csv(results, "data/part2/inference_development.csv", row.names = FALSE)
 
 # MS&E 226, Part 2 — Question 3b
 # Append after 3a: uses raw, raw_ids, dev_ids, variables, spec,
@@ -129,6 +129,6 @@ print(comparison, digits = 4, row.names = FALSE)
 
 write.csv(
   comparison,
-  "part2/results/inference_development_vs_holdout.csv",
+  "data/part2/inference_development_vs_holdout.csv",
   row.names = FALSE
 )

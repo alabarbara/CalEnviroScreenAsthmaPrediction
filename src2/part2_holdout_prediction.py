@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
-# The script lives in part2/; the existing data/ folder is at the repo root.
+# The script lives in src2/; data/ and outputs under data/part2/ are at the repo root.
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "part2" / "results"
+OUTPUT = ROOT / "data" / "part2"
 
 POLY = ["poverty", "unemployment", "linguistic_isolation", "ozone", "pm2_5"]
 CATEGORICAL = ["region", "haz_waste_any", "solid_waste_any"]
